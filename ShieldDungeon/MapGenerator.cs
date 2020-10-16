@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+[RequireComponent(typeof(Room))]
 public class MapGenerator : MonoBehaviour
 {
     #region Editor Fields
@@ -219,8 +220,7 @@ public class MapGenerator : MonoBehaviour
             }
         }
         _allRooms.Sort();
-        _allRooms[0].isMainRoom = true;
-        _allRooms[0].isAccessibleFromMainRoom = true;
+        _allRooms[0].SetMainRoom();
 
         ConnectClosestRooms(_allRooms);
     }
@@ -298,7 +298,7 @@ public class MapGenerator : MonoBehaviour
         {
             foreach(Room room in allRooms)
             {
-                if(room.isAccessibleFromMainRoom)
+                if(room.IsAccessibleFromMainRoom)
                 {
                     roomListB.Add(room);
                 }
@@ -327,7 +327,7 @@ public class MapGenerator : MonoBehaviour
             {
                 //First pass, make sure all rooms are at least connected to 1 other room
                 possibleConnectionFound = false;
-                if(roomA.connectedRooms.Count > 0)
+                if(roomA.ConnectedRooms.Count > 0)
                 {
                     continue;
                 }
@@ -338,13 +338,13 @@ public class MapGenerator : MonoBehaviour
                 {
                     continue;
                 }
-                for(int tileIndexA = 0; tileIndexA < roomA.edgeTiles.Count; tileIndexA++)
+                for(int tileIndexA = 0; tileIndexA < roomA.EdgeTiles.Count; tileIndexA++)
                 {
-                    for (int tileIndexB = 0; tileIndexB < roomB.edgeTiles.Count; tileIndexB++)
+                    for (int tileIndexB = 0; tileIndexB < roomB.EdgeTiles.Count; tileIndexB++)
                     {
                         //Check the distance between all the tiles of both rooms to find the 2 tiles closest to eachother
-                        Coord tileA = roomA.edgeTiles[tileIndexA];
-                        Coord tileB = roomB.edgeTiles[tileIndexB];
+                        Coord tileA = roomA.EdgeTiles[tileIndexA];
+                        Coord tileB = roomB.EdgeTiles[tileIndexB];
                         int distanceBetweenRooms = (int)(Mathf.Pow(tileA.tileX - tileB.tileX, 2) + Mathf.Pow(tileA.tileY - tileB.tileY, 2));
 
                         if(distanceBetweenRooms < bestDistance || !possibleConnectionFound)
@@ -595,155 +595,5 @@ public class MapGenerator : MonoBehaviour
     }
 
     #endregion
-
-    #endregion
-
-    #region Room
-    struct Coord
-    {
-        public int tileX;
-        public int tileY;
-
-        public Coord(int x, int y)
-        {
-            tileX = x;
-            tileY = y;
-        }
-    }
-
-    class Room : IComparable<Room>
-    {
-        public List<Coord> tiles;
-        public List<Coord> edgeTiles;
-        public List<Room> connectedRooms;
-        public int roomSize;
-        public bool isAccessibleFromMainRoom;
-        public bool isMainRoom;
-        public Type RoomType { get; set; }
-
-        public enum Type
-        {
-            Enemy,
-            Chest,
-            Start
-        }
-
-        public Room()
-        {
-
-        }
-
-        public Room(List<Coord> roomTiles, int[,] map)
-        {
-            RoomType = Type.Enemy;
-            tiles = roomTiles;
-            roomSize = tiles.Count;
-            connectedRooms = new List<Room>();
-
-            edgeTiles = new List<Coord>();
-            foreach(Coord tile in tiles)
-            {
-                for(int x = tile.tileX - 1; x <= tile.tileX + 1; x++)
-                {
-                    for (int y = tile.tileY - 1; y <= tile.tileY + 1; y++)
-                    {
-                        if(x == tile.tileX || y == tile.tileY)
-                        {
-                            if (map[x,y] == 1)
-                            {
-                                edgeTiles.Add(tile);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        //Set this room and all rooms connected to this room as accesible from the main room
-        public void SetAccessibleFromMainRoom()
-        {
-            if(!isAccessibleFromMainRoom)
-            {
-                isAccessibleFromMainRoom = true;
-                foreach(Room connectedRoom in connectedRooms)
-                {
-                    connectedRoom.SetAccessibleFromMainRoom();
-                }
-            }
-        }
-
-        public static void ConnectRooms(Room roomA, Room roomB)
-        {
-            if(roomA.isAccessibleFromMainRoom)
-            {
-                roomB.SetAccessibleFromMainRoom();
-            }
-            else if(roomB.isAccessibleFromMainRoom)
-            {
-                roomA.SetAccessibleFromMainRoom();
-            }
-            roomA.connectedRooms.Add(roomB);
-            roomB.connectedRooms.Add(roomA);
-        }
-
-        public bool IsConnected(Room otherRoom)
-        {
-            return connectedRooms.Contains(otherRoom);
-        }
-
-        public int CompareTo(Room otherRoom)
-        {
-            return otherRoom.roomSize.CompareTo(roomSize);
-        }
-
-        //Get a random tile in the room
-        public Coord GetRandomTile()
-        {
-            return tiles[UnityEngine.Random.Range(0, tiles.Count)];
-        }
-
-        //Get a list of different random tiles in the room
-        public List<Coord> GetRandomTiles(int amount)
-        {
-            List<Coord> randomTiles = new List<Coord>();
-            for(int i = 0; i < amount; i++)
-            {
-                Coord randTile = GetRandomTile();
-                while(randomTiles.Contains(randTile))
-                {
-                    randTile = GetRandomTile();
-                }
-                randomTiles.Add(randTile);
-            }
-            return randomTiles;
-        }
-
-        //Get a random coordinate around another coordinate in order to spawn items close to eachother
-        public Coord GetCoordInRange(Coord aroundCoord, int range)
-        {
-            Coord coord = GetRandomTile();
-            const int maxAmountOfTries = 2000;
-            int amountOfTries = 0;
-            while(Vector2.Distance(new Vector2(coord.tileX, coord.tileY), new Vector2(aroundCoord.tileX, aroundCoord.tileY)) > range)
-            {
-                coord = GetRandomTile();
-                amountOfTries++;
-                if(amountOfTries > maxAmountOfTries)
-                {
-                    break;
-                }
-            }
-            return coord;
-        }
-
-        public bool IsCoordInRoom(Coord coord)
-        {
-            if(tiles.Contains(coord))
-            {
-                return true;
-            }
-            return false;
-        }
-    }
-    #endregion
+    #endregion  
 }
